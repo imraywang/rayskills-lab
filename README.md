@@ -68,7 +68,11 @@ npx -y skills add imraywang/rayskills-lab -g <skill名>
 
 ## 开发新 Skill
 
-从 `skills/_template/` 复制一份骨架开始，用 skill-creator 做 evals 和 description benchmark。孵化期就按毕业标准的方向写，毕业那天不用返工。
+从 `templates/skill-template/` 复制一份骨架到 `skills/<新名字>/` 开始，用 skill-creator 做 evals 和
+description benchmark。孵化期就按毕业标准的方向写，毕业那天不用返工。
+
+**约定：`skills/` 下只放可安装的真实 Skill。**安装器会把该目录下的每一个 Skill 都视为可安装对象，
+模板、草稿、废弃实验都不能放在这里。
 
 ## License
 
