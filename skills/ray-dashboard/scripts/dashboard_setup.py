@@ -23,13 +23,29 @@ HERE = Path(__file__).resolve().parent
 ASSET_ROOT = HERE.parent / "assets" / "dashboard"
 DASHBOARD_REL = "50-系统/40-自动化/知识仪表盘"
 STATE_HOME = Path(os.environ.get("RAYS_BRAIN_STATE", str(Path.home() / ".local/state/rays-brain")))
-PID_FILE = STATE_HOME / "dashboard.pid"
 LOG_FILE = STATE_HOME / "logs" / "dashboard.log"
 USER_CONFIG = "config.json"  # 用户数据，任何情况下不覆盖
+IGNORED_DIR_PARTS = {"__pycache__"}
+IGNORED_NAMES = {".DS_Store"}
+
+
+def pid_file(port: int) -> Path:
+    """按端口区分 pid 文件：多个 vault 各跑一个实例时互不接管。"""
+    return STATE_HOME / f"dashboard-{port}.pid"
 
 
 def asset_files() -> list[Path]:
-    return sorted(p.relative_to(ASSET_ROOT) for p in ASSET_ROOT.rglob("*") if p.is_file())
+    result: list[Path] = []
+    for path in ASSET_ROOT.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(ASSET_ROOT)
+        if any(part in IGNORED_DIR_PARTS for part in rel.parts):
+            continue
+        if rel.name in IGNORED_NAMES or rel.suffix == ".pyc":
+            continue
+        result.append(rel)
+    return sorted(result)
 
 
 def digest(path: Path) -> str:
@@ -132,8 +148,8 @@ def start(vault: Path, port: int, open_browser: bool) -> dict:
     for _ in range(20):
         time.sleep(0.4)
         if healthz(port) is not None:
-            PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-            PID_FILE.write_text(str(proc.pid), encoding="utf-8")
+            pid_file(port).parent.mkdir(parents=True, exist_ok=True)
+            pid_file(port).write_text(str(proc.pid), encoding="utf-8")
             return {"ok": True, "pid": proc.pid, "url": f"http://127.0.0.1:{port}", "log": str(LOG_FILE)}
     proc.terminate()
     return {"ok": False, "error": f"服务没有在预期时间内就绪，查看日志：{LOG_FILE}"}
@@ -141,8 +157,9 @@ def start(vault: Path, port: int, open_browser: bool) -> dict:
 
 def stop(port: int) -> dict:
     pids: list[int] = []
-    if PID_FILE.exists():
-        raw = PID_FILE.read_text(encoding="utf-8").strip()
+    marker = pid_file(port)
+    if marker.exists():
+        raw = marker.read_text(encoding="utf-8").strip()
         if raw.isdigit():
             pids.append(int(raw))
     pids.extend(pid for pid in port_pids(port) if pid not in pids)
@@ -153,7 +170,7 @@ def stop(port: int) -> dict:
             stopped.append(pid)
         except (ProcessLookupError, PermissionError):
             continue
-    PID_FILE.unlink(missing_ok=True)
+    marker.unlink(missing_ok=True)
     return {"ok": True, "stopped": stopped, "was_running": bool(stopped)}
 
 
