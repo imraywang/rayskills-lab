@@ -24,11 +24,21 @@
 
 ## 安装（只装单个，不要全装）
 
+先看仓库里有什么可装：
+
 ```bash
-npx -y skills add imraywang/rayskills-lab -g <skill名>
+npx -y skills add imraywang/rayskills-lab -l
 ```
 
-不要对本仓库使用 `--all`——孵化区按定义不适合整包安装。装之前读一下该 Skill 目录里的 SKILL.md，确认它处于什么状态。
+只装你需要的那一个。**`-s` 不能省**——skill 名放在别的位置会被忽略，变成整仓库全装：
+
+```bash
+npx -y skills add imraywang/rayskills-lab -g -s <skill名> -y
+```
+
+不要使用 `--all`（它是 `--skill '*' --agent '*' -y` 的缩写）——孵化区按定义不适合整包安装。
+输出里若出现个别 agent 不支持全局安装的提示（如 PromptScript），忽略即可，不影响其他 agent。
+装之前读一下该 Skill 目录里的 SKILL.md，确认它处于什么状态。
 
 ## ⚠️ 免责声明
 
