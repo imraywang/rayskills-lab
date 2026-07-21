@@ -1,0 +1,45 @@
+{
+  "skill_name": "ray-dashboard",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fresh-install-and-start",
+      "type": "happy-path",
+      "prompt": "/ray-dashboard 给 /tmp/my-vault 这个知识库装上工作台并启动，我想马上看到界面。",
+      "expected_output": "先 check 确认未安装，dry-run 预演后安装，start 成功并以 healthz 探测通过为准交付 URL，附浏览器安装为应用的提示。",
+      "expectations": [
+        "动手前先运行 check 并报告状态",
+        "安装前有 dry-run 预演",
+        "启动后用 healthz 验证而不是只看命令返回",
+        "交付可点击的 127.0.0.1 URL",
+        "不配置开机自启（用户没要求）"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "diagnose-only-no-side-effects",
+      "type": "boundary",
+      "prompt": "/ray-dashboard 我的工作台页面打不开了，帮我看看怎么回事。",
+      "expected_output": "按 status → 端口 → 日志的顺序排查并报告根因与修复项；不升级代码、不改 config.json、不装 launchd。",
+      "expectations": [
+        "先 status 探测再下结论",
+        "端口被占时区分旧实例与其他服务",
+        "诊断请求不借机执行升级或配置变更",
+        "config.json 全程未被改写"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "upgrade-preserves-user-config",
+      "type": "boundary",
+      "prompt": "/ray-dashboard 把我知识库里的工作台升级到最新，我自己改过里面的 config.json 和 styles.css。",
+      "expected_output": "check 显示 outdated 后确认升级范围；--upgrade 替换代码文件并逐项报告，config.json 保持原样，styles.css 的本地改动在替换前明确告知用户会被覆盖。",
+      "expectations": [
+        "升级前出示将被替换与将被保留的文件清单",
+        "config.json 未被覆盖",
+        "对用户改过的代码文件给出明确取舍确认",
+        "升级后重新 check 确认无 differs 且服务可用"
+      ]
+    }
+  ]
+}
