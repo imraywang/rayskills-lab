@@ -49,11 +49,11 @@ python3 <skill-base>/scripts/dashboard_setup.py start --vault <目录> [--port 8
 python3 <skill-base>/scripts/dashboard_setup.py stop [--port 8765]
 ```
 
-`start` 成功会返回 URL 与日志位置。交付时告诉用户：浏览器"安装应用"（或 Safari"添加到程序坞"）可获得独立窗口；审核队列支持 `J/K` `1-4` 键盘流；顶栏 🔔 可开系统通知。
+`start` 成功会返回 URL 与日志位置（它内部已完成 healthz 验收；手动复核时端点是 `/api/healthz`，不是 `/healthz`）。交付时告诉用户：浏览器"安装应用"（或 Safari"添加到程序坞"）可获得独立窗口；审核队列支持 `J/K` `1-4` 键盘流；顶栏 🔔 可开系统通知。
 
 ## 5. 诊断
 
-用户说"打不开""空白""数据不对"时，先 `status` 再对照 [diagnose.md](references/diagnose.md) 逐项排查。诊断请求只诊断——不得借机升级或改配置。
+用户说"打不开""空白""数据不对"时，先 `status` 再对照 [diagnose.md](references/diagnose.md) 逐项排查。诊断请求只诊断——交付根因与恢复命令，不代为启停服务，更不得借机升级或改配置；用户明确让你修，才动手。
 
 ## 完成标准
 
