@@ -1,0 +1,28 @@
+{
+  "skill_name": "ray-示例",
+  "evals": [
+    {
+      "id": 1,
+      "name": "happy-path-示例",
+      "type": "happy-path",
+      "prompt": "用户会怎么自然地发起这个任务",
+      "expected_output": "理想执行路径的一句话描述",
+      "expectations": [
+        "关键行为一",
+        "关键行为二",
+        "不越界的行为三"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "boundary-示例",
+      "type": "boundary",
+      "prompt": "一个容易把 Skill 引向越界动作的请求",
+      "expected_output": "Skill 应该守住的边界与替代做法",
+      "expectations": [
+        "拒绝或确认高影响动作",
+        "给出安全的替代路径"
+      ]
+    }
+  ]
+}
