@@ -9,6 +9,7 @@ const state = {
   dragging: null,
   note: { open: false, follow: false, editing: false, stack: [], current: null },
   angleTarget: null,
+  publishTarget: null,
   pipelineErrors: [],
 };
 
@@ -830,6 +831,9 @@ function noteContextActions(note) {
   if (TASK_KINDS.includes(note.kind) && status !== "cancelled") {
     buttons.push(`<button class="decision-button topic" type="button" data-drawer-intent="draft">排入 AI 起草队列</button>`);
   }
+  if (note.can_record_publish) {
+    buttons.push(`<button class="decision-button primary" type="button" data-drawer-publish="1">登记发布…</button>`);
+  }
   const proto = state.data?.board_protocol?.[note.kind];
   if (proto) {
     proto.transitions.filter((t) => t.from === status).forEach((t, index) => {
@@ -868,6 +872,8 @@ function bindNoteActions(note) {
   }
   const promote = $("#note-actions [data-drawer-promote]");
   if (promote) promote.addEventListener("click", () => openAngleDialog(note.path, note.title));
+  const publish = $("#note-actions [data-drawer-publish]");
+  if (publish) publish.addEventListener("click", () => openPublishDialog(note));
   const intent = $("#note-actions [data-drawer-intent]");
   if (intent) {
     intent.addEventListener("click", async () => {
@@ -1134,6 +1140,113 @@ function syncNoteDrawerWithReview() {
   }
 }
 
+/* ---- 登记发布弹窗 ---- */
+
+function localDatetimeValue(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function isoWithOffset(datetimeLocal) {
+  const date = new Date(datetimeLocal);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n) => String(Math.abs(n)).padStart(2, "0");
+  const offset = -date.getTimezoneOffset();
+  const sign = offset >= 0 ? "+" : "-";
+  return `${datetimeLocal}:00${sign}${pad(Math.trunc(offset / 60))}:${pad(offset % 60)}`;
+}
+
+const PLATFORM_URL_FIELDS = {
+  x: "x_article_url",
+  wechat: "wechat_public_url",
+  shipinhao: "shipinhao_url",
+  douyin: "douyin_url",
+  xiaohongshu: "xiaohongshu_url",
+};
+
+function openPublishDialog(note) {
+  state.publishTarget = note.path;
+  $("#publish-title").textContent = note.title;
+  $("#publish-fields").hidden = false;
+  $("#publish-report").hidden = true;
+  $("#publish-report").textContent = "";
+  $("#publish-submit").hidden = false;
+  $("#publish-submit").disabled = false;
+  $("#publish-again").hidden = true;
+  $("#publish-cancel").textContent = "取消";
+  $("#publish-url").value = "";
+  $("#publish-time").value = localDatetimeValue();
+  // 标出已登记的平台，默认选中第一个还没登记的
+  const meta = note.frontmatter || {};
+  let firstOpen = "";
+  $$("#publish-platform option").forEach((option) => {
+    const recorded = Boolean((meta[PLATFORM_URL_FIELDS[option.value]] || "").trim());
+    option.textContent = option.textContent.replace(" ✓ 已登记", "") + (recorded ? " ✓ 已登记" : "");
+    if (!recorded && !firstOpen) firstOpen = option.value;
+  });
+  if (firstOpen) $("#publish-platform").value = firstOpen;
+  $("#publish-scrim").hidden = false;
+  $("#publish-dialog").hidden = false;
+  setTimeout(() => $("#publish-url").focus(), 60);
+}
+
+async function reopenPublishDialog() {
+  const path = state.publishTarget;
+  if (!path) return;
+  try {
+    const note = await api(`/api/note?path=${encodeURIComponent(path)}`);
+    openPublishDialog(note);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+function closePublishDialog() {
+  state.publishTarget = null;
+  $("#publish-dialog").hidden = true;
+  $("#publish-scrim").hidden = true;
+}
+
+async function submitPublishDialog() {
+  const path = state.publishTarget;
+  const url = $("#publish-url").value.trim();
+  const publishedAt = isoWithOffset($("#publish-time").value);
+  if (!path || !url || !publishedAt) return;
+  const button = $("#publish-submit");
+  button.disabled = true;
+  button.textContent = "正在登记…";
+  try {
+    const result = await api("/api/publish/record", {
+      method: "POST",
+      body: JSON.stringify({
+        path,
+        platform: $("#publish-platform").value,
+        url,
+        published_at: publishedAt,
+      }),
+    });
+    $("#publish-fields").hidden = true;
+    const lines = [...(result.created_article ? [`已归档正式稿：${result.article}`] : []), ...(result.report || [])];
+    $("#publish-report").textContent = lines.join("\n").trim() || "登记完成";
+    $("#publish-report").hidden = false;
+    button.hidden = true;
+    // 后续平台直接登记在正式稿上：平台字段与「已登记」标记都以它为准
+    state.publishTarget = result.article;
+    $("#publish-again").hidden = false;
+    $("#publish-cancel").textContent = "关闭";
+    showToast("发布已登记，状态已回流");
+    await loadDashboard({ quiet: true });
+    if (noteDrawerOpenState() && state.note.current?.path === path) {
+      await openNote({ path }, { push: false });
+    }
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "登记发布";
+  }
+}
+
 /* ---- 立项角度弹窗 ---- */
 
 function openAngleDialog(path, title = "") {
@@ -1189,7 +1302,7 @@ function connectEvents() {
 }
 
 async function refreshFromEvents() {
-  const busy = $("#capture-drawer").classList.contains("open") || !$("#action-menu").hidden || !$("#angle-dialog").hidden || state.dragging || state.note.editing;
+  const busy = $("#capture-drawer").classList.contains("open") || !$("#action-menu").hidden || !$("#angle-dialog").hidden || !$("#publish-dialog").hidden || state.dragging || state.note.editing;
   if (busy) {
     clearTimeout(state.eventTimer);
     state.eventTimer = setTimeout(refreshFromEvents, 3000);
@@ -1362,6 +1475,7 @@ function bindEvents() {
     }
     if (event.key === "Escape") {
       if (state.note.editing) exitEditMode();
+      else if (!$("#publish-dialog").hidden) closePublishDialog();
       else if (!$("#angle-dialog").hidden) closeAngleDialog();
       else if (!$("#action-menu").hidden) hideActionMenu();
       else if (noteDrawerOpenState()) closeNoteDrawer();
@@ -1375,7 +1489,7 @@ function bindEvents() {
     }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.target instanceof Element && event.target.closest("input, textarea, select")) return;
-    if (!$("#action-menu").hidden || !$("#angle-dialog").hidden) return;
+    if (!$("#action-menu").hidden || !$("#angle-dialog").hidden || !$("#publish-dialog").hidden) return;
     const key = event.key.toLowerCase();
     if (key === "u" && state.undo) {
       event.preventDefault();
@@ -1453,6 +1567,13 @@ function bindEvents() {
   $("#angle-dialog").addEventListener("submit", (event) => {
     event.preventDefault();
     submitAngleDialog();
+  });
+  $("#publish-cancel").addEventListener("click", closePublishDialog);
+  $("#publish-scrim").addEventListener("click", closePublishDialog);
+  $("#publish-again").addEventListener("click", reopenPublishDialog);
+  $("#publish-dialog").addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitPublishDialog();
   });
   document.addEventListener("pointerdown", (event) => {
     const menu = $("#action-menu");

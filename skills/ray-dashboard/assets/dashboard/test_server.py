@@ -62,6 +62,10 @@ source_url: "https://example.com"
         self.ingest_script = self.vault / "知识采集/knowledge_ingest.py"
         self.ingest_script.parent.mkdir(parents=True, exist_ok=True)
         self.ingest_script.write_text("# 测试占位\n", encoding="utf-8")
+        # 登记发布同理：脚本存在性检查发生在 mock 之前
+        self.record_script = self.vault / "发布归档/record_published.py"
+        self.record_script.parent.mkdir(parents=True, exist_ok=True)
+        self.record_script.write_text("# 测试占位\n", encoding="utf-8")
         self.patchers = [
             mock.patch.object(dashboard, "VAULT", self.vault),
             mock.patch.object(dashboard, "REVIEW_DIR", self.review_dir),
@@ -71,6 +75,7 @@ source_url: "https://example.com"
                 dashboard, "INTENT_QUEUE_FILE", self.vault / "50-系统/40-自动化/AI任务队列.md"
             ),
             mock.patch.object(dashboard, "INGEST_SCRIPT", self.ingest_script),
+            mock.patch.object(dashboard, "RECORD_SCRIPT", self.record_script),
             mock.patch.object(dashboard, "STATE_HOME", self.vault / ".state"),
         ]
         for patcher in self.patchers:
@@ -653,6 +658,93 @@ source_url: "https://example.com"
             self.assertTrue(dashboard.manual_run_running())
             with self.assertRaisesRegex(ValueError, "进行中"):
                 dashboard.start_manual_run()
+
+    # ---- 发布回流 ----
+
+    def _write_publish_chain(self) -> tuple[Path, Path]:
+        task_dir = self.vault / dashboard.LAYOUT["writing_tasks_dir"]
+        task_dir.mkdir(parents=True, exist_ok=True)
+        pack = task_dir / "任务.md"
+        pack.write_text(
+            "---\nkind: content-pack\nstatus: active\ncontent_id: article-abc\n---\n\n# 成稿包\n",
+            encoding="utf-8",
+        )
+        draft_dir = self.vault / "10-创作/30-文章草稿"
+        draft_dir.mkdir(parents=True, exist_ok=True)
+        draft = draft_dir / "草稿.md"
+        draft.write_text(
+            "---\nkind: draft\nstatus: active-draft\ncontent_id: article-abc\n"
+            "content_pack: \"[[10-创作/20-写作任务/任务]]\"\n---\n\n# 一篇草稿\n\n正文。\n",
+            encoding="utf-8",
+        )
+        return draft, pack
+
+    def test_record_publication_archives_and_backfills(self) -> None:
+        draft, pack = self._write_publish_chain()
+        fake = mock.Mock(returncode=0, stdout="正式稿 40-发布/...\n反馈卡 ...\n", stderr="")
+        with mock.patch.object(dashboard.subprocess, "run", return_value=fake) as run:
+            result = dashboard.record_publication(
+                "10-创作/30-文章草稿/草稿.md",
+                "x",
+                "https://x.com/wangray/status/123",
+                "2026-07-28T10:00:00-07:00",
+            )
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["created_article"])
+        article = self.vault / "40-发布/10-X长文/草稿.md"
+        self.assertTrue(article.exists())
+        article_text = article.read_text(encoding="utf-8")
+        self.assertIn("kind: article-published", article_text)
+        self.assertIn("status: published", article_text)
+        self.assertIn("draft_source:", article_text)
+        draft_text = draft.read_text(encoding="utf-8")
+        self.assertIn("status: published", draft_text)
+        self.assertIn("published_file:", draft_text)
+        pack_text = pack.read_text(encoding="utf-8")
+        self.assertIn("status: published", pack_text)
+        command = run.call_args.args[0]
+        self.assertIn("--article", command)
+        self.assertIn("40-发布/10-X长文/草稿.md", command)
+        self.assertEqual(run.call_args.kwargs["env"]["RAYS_BRAIN"], str(self.vault))
+
+    def test_record_publication_reuses_existing_article(self) -> None:
+        draft, _ = self._write_publish_chain()
+        existing_dir = self.vault / "40-发布/10-X长文"
+        existing_dir.mkdir(parents=True, exist_ok=True)
+        existing = existing_dir / "已归档.md"
+        existing.write_text(
+            "---\nkind: article-published\nstatus: published\ncontent_id: article-abc\n---\n\n# 已归档\n",
+            encoding="utf-8",
+        )
+        fake = mock.Mock(returncode=0, stdout="ok\n", stderr="")
+        with mock.patch.object(dashboard.subprocess, "run", return_value=fake):
+            result = dashboard.record_publication(
+                "10-创作/30-文章草稿/草稿.md",
+                "wechat",
+                "https://mp.weixin.qq.com/s/abc",
+                "2026-07-28T10:00:00-07:00",
+            )
+        self.assertFalse(result["created_article"])
+        self.assertEqual(result["article"], "40-发布/10-X长文/已归档.md")
+        self.assertFalse((self.vault / "40-发布/10-X长文/草稿.md").exists())
+
+    def test_record_publication_validates_input(self) -> None:
+        self._write_publish_chain()
+        with self.assertRaisesRegex(ValueError, "平台"):
+            dashboard.record_publication("10-创作/30-文章草稿/草稿.md", "weibo", "https://x", "2026-07-28T10:00:00-07:00")
+        with self.assertRaisesRegex(ValueError, "不能为空"):
+            dashboard.record_publication("10-创作/30-文章草稿/草稿.md", "x", "", "2026-07-28T10:00:00-07:00")
+        with self.assertRaisesRegex(ValueError, "只能对草稿"):
+            dashboard.record_publication(
+                "10-创作/10-灵感/10-待评估/剪藏复核/test.md", "x", "https://x.com/1", "2026-07-28T10:00:00-07:00"
+            )
+
+    def test_note_payload_flags_publishable_notes(self) -> None:
+        draft, _ = self._write_publish_chain()
+        self.assertTrue(dashboard.note_payload("10-创作/30-文章草稿/草稿.md")["can_record_publish"])
+        self.assertFalse(
+            dashboard.note_payload("10-创作/10-灵感/10-待评估/剪藏复核/test.md")["can_record_publish"]
+        )
 
     def test_promote_surfaces_pipeline_error(self) -> None:
         self._write_topic()
