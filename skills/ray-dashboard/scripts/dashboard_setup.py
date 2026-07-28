@@ -65,8 +65,13 @@ def healthz(port: int) -> dict | None:
 
 
 def port_pids(port: int) -> list[int]:
+    """只取端口的监听进程。不过滤会把连着端口的客户端（如浏览器 SSE 连接的
+    辅助进程）一起列进来，stop 会误杀它们，start 的占用检测也会误报。"""
     try:
-        proc = subprocess.run(["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=10)
+        proc = subprocess.run(
+            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
+            capture_output=True, text=True, timeout=10,
+        )
     except (OSError, subprocess.TimeoutExpired):
         return []
     return [int(line) for line in proc.stdout.split() if line.strip().isdigit()]
