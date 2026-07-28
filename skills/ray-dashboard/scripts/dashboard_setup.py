@@ -3,6 +3,8 @@
 
 命令都输出 JSON，便于上层判断；除 install 外全部只读或可逆。
 安装目标固定为 <vault>/50-系统/40-自动化/知识仪表盘/，与 ray-content-v1 布局一致。
+server.py 依赖上一级目录的 review_protocol.json / board_protocol.json（管线协议），
+install 会在缺失时从资产补默认副本；已存在的协议是管线数据，任何情况下不覆盖。
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ASSET_ROOT = HERE.parent / "assets" / "dashboard"
+PROTOCOL_ROOT = HERE.parent / "assets"  # 镜像 40-自动化 布局：协议在仪表盘上一级
+PROTOCOL_FILES = ("review_protocol.json", "board_protocol.json")
 DASHBOARD_REL = "50-系统/40-自动化/知识仪表盘"
 STATE_HOME = Path(os.environ.get("RAYS_BRAIN_STATE", str(Path.home() / ".local/state/rays-brain")))
 LOG_FILE = STATE_HOME / "logs" / "dashboard.log"
@@ -78,9 +82,12 @@ def check(vault: Path, port: int) -> dict:
             missing.append(str(rel))
         elif digest(installed) != digest(ASSET_ROOT / rel):
             differs.append(str(rel))
+    missing_protocols = [
+        name for name in PROTOCOL_FILES if not (target.parent / name).exists()
+    ]
     if not target.exists():
         status = "not-installed"
-    elif missing:
+    elif missing or missing_protocols:
         status = "incomplete"
     elif differs:
         status = "outdated"
@@ -91,6 +98,7 @@ def check(vault: Path, port: int) -> dict:
         "status": status,
         "dashboard_dir": str(target),
         "missing": missing,
+        "missing_protocols": missing_protocols,
         "differs": differs,
         "has_user_config": (target / USER_CONFIG).exists(),
         "inbox_exists": (vault / "10-创作/10-灵感/inbox.md").exists(),
@@ -120,6 +128,17 @@ def install(vault: Path, upgrade: bool, dry_run: bool) -> dict:
                 if not dry_run:
                     installed.write_bytes(source.read_bytes())
                 upgraded.append(str(rel))
+    seeded: list[str] = []
+    for name in PROTOCOL_FILES:
+        # server.py 硬依赖审核协议；缺失时补默认副本。已有协议是管线数据，
+        # 用户可能已自定义动作或流转，--upgrade 也不覆盖。
+        dest = target.parent / name
+        if dest.exists():
+            continue
+        if not dry_run:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes((PROTOCOL_ROOT / name).read_bytes())
+        seeded.append(name)
     return {
         "ok": True,
         "dry_run": dry_run,
@@ -127,6 +146,7 @@ def install(vault: Path, upgrade: bool, dry_run: bool) -> dict:
         "copied": copied,
         "upgraded": upgraded,
         "kept_local_changes": kept,
+        "seeded_protocols": seeded,
     }
 
 

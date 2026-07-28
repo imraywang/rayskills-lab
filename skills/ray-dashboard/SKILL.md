@@ -12,7 +12,7 @@ description: 在用户的本地知识库上安装、启动、升级或诊断"知
 ## 固定原则
 
 1. 仪表盘只监听 `127.0.0.1`，不改成对外监听，不做端口转发建议。
-2. 不读取、不修改、不移动用户笔记；安装只写 `50-系统/40-自动化/知识仪表盘/` 一个目录。
+2. 不读取、不修改、不移动用户笔记；安装只写 `50-系统/40-自动化/知识仪表盘/` 一个目录，外加在其上一级补齐缺失的 `review_protocol.json` / `board_protocol.json` 默认协议（已有协议是管线数据，一律不动、不覆盖）。
 3. `config.json` 是用户数据，任何命令任何情况下不覆盖。
 4. 用户已改动的代码文件默认保留；只有用户明确要求升级时才用 `--upgrade` 替换，并逐项报告。
 5. 启动的完成标准是 healthz 探测通过并交付可点击 URL，不以"命令没报错"为完成。
@@ -30,11 +30,11 @@ vault 还没有结构时，先建议用 ray-obsidian 搭骨架；用户不想装
 python3 <skill-base>/scripts/dashboard_setup.py check --vault <知识库目录>
 ```
 
-按 `status` 分流：`not-installed` 走安装；`incomplete` 补装；`outdated` 说明资产比已装版本新，问用户是否升级；`installed` 直接进入启动或诊断。`server.running` 为 true 时不要重复启动。
+按 `status` 分流：`not-installed` 走安装；`incomplete` 补装（含 `missing_protocols` 非空——协议缺失时审核/流转功能会降级关闭，补装即恢复）；`outdated` 说明资产比已装版本新，问用户是否升级；`installed` 直接进入启动或诊断。`server.running` 为 true 时不要重复启动。
 
 ## 3. 安装与升级
 
-先预演再执行；升级必须出示 `kept_local_changes` 与 `upgraded` 清单：
+先预演再执行；升级必须出示 `kept_local_changes` 与 `upgraded` 清单；`seeded_protocols` 列出本次补齐的默认协议（只补缺失，从不覆盖已有）：
 
 ```bash
 python3 <skill-base>/scripts/dashboard_setup.py install --vault <目录> --dry-run
