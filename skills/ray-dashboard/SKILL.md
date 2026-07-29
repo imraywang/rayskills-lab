@@ -64,4 +64,4 @@ python3 <skill-base>/scripts/dashboard_setup.py stop [--port 8765]
 
 ## 上游
 
-资产副本来自 rays-brain-kit（工作台 + 采集管线的完整仓库）。更新资产时从上游整目录同步，不在本 skill 内单独修改仪表盘代码。
+资产副本来自 [rays-brain-kit](https://github.com/imraywang/rays-brain-kit)（工作台 + 采集管线的完整仓库）。更新资产时从上游整目录同步，不在本 skill 内单独修改仪表盘代码。

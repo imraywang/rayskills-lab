@@ -54,4 +54,4 @@ curl -s http://127.0.0.1:8765/api/healthz # 应返回 {"ok": true, ...}
 
 - 装载前先把手动启动的实例 `stop` 掉，否则端口冲突导致 launchd 反复重启。
 - 卸载：`launchctl unload ~/Library/LaunchAgents/com.rays-brain.dashboard.plist`。
-- 采集管线的三个定时任务是另一套 plist（见 rays-brain-kit 的 `定时任务/`），与本服务互相独立。
+- 采集管线的三个定时任务是另一套 plist（见 [rays-brain-kit](https://github.com/imraywang/rays-brain-kit) 的 `定时任务/`），与本服务互相独立。
