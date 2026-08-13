@@ -11,7 +11,7 @@ description: 在用户的本地知识库上安装、启动、升级或诊断"知
 
 ## 固定原则
 
-1. 仪表盘只监听 `127.0.0.1`，不改成对外监听，不做端口转发建议。
+1. 仪表盘默认只监听 `127.0.0.1`。只有用户明确要求手机通过自己的 Tailscale 网络访问时才加 `--tailnet`；不监听局域网地址，不做公网端口转发建议。
 2. 不读取、不修改、不移动用户笔记；安装只写 `50-系统/40-自动化/知识仪表盘/` 一个目录，外加在其上一级补齐缺失的 `review_protocol.json` / `board_protocol.json` 默认协议（已有协议是管线数据，一律不动、不覆盖）。
 3. `config.json` 是用户数据，任何命令任何情况下不覆盖。
 4. 用户已改动的代码文件默认保留；只有用户明确要求升级时才用 `--upgrade` 替换，并逐项报告。
@@ -30,7 +30,7 @@ vault 还没有结构时，先建议用 ray-obsidian 搭骨架；用户不想装
 python3 <skill-base>/scripts/dashboard_setup.py check --vault <知识库目录>
 ```
 
-按 `status` 分流：`not-installed` 走安装；`incomplete` 补装（含 `missing_protocols` 非空——协议缺失时审核/流转功能会降级关闭，补装即恢复）；`outdated` 说明资产比已装版本新，问用户是否升级；`installed` 直接进入启动或诊断。`server.running` 为 true 时不要重复启动。
+按 `status` 分流：`not-installed` 走安装；`incomplete` 补装（含 `missing_protocols` 非空——协议缺失时审核/流转功能会降级关闭，补装即恢复）；`different` 只说明本地与资产不同，不能据此断定哪一边更新，先出示 `differs` 清单再决定保留还是升级；`installed` 直接进入启动或诊断。`server.running` 为 true 时不要重复启动。
 
 ## 3. 安装与升级
 
@@ -45,11 +45,11 @@ python3 <skill-base>/scripts/dashboard_setup.py install --vault <目录> --upgra
 ## 4. 启动、停止与验收
 
 ```bash
-python3 <skill-base>/scripts/dashboard_setup.py start --vault <目录> [--port 8765] [--open]
+python3 <skill-base>/scripts/dashboard_setup.py start --vault <目录> [--port 8765] [--open] [--tailnet]
 python3 <skill-base>/scripts/dashboard_setup.py stop [--port 8765]
 ```
 
-`start` 成功会返回 URL 与日志位置（它内部已完成 healthz 验收；手动复核时端点是 `/api/healthz`，不是 `/healthz`）。交付时告诉用户：浏览器"安装应用"（或 Safari"添加到程序坞"）可获得独立窗口；审核队列支持 `J/K` `1-4` 键盘流；顶栏 🔔 可开系统通知。
+`start` 成功会返回 URL 与日志位置（它内部已完成 healthz 验收；手动复核时端点是 `/api/healthz`，不是 `/healthz`）。交付时告诉用户：浏览器"安装应用"（或 Safari"添加到程序坞"）可获得独立窗口；审核队列支持 `J/K` `1-5` 键盘流；顶栏 🔔 可开系统通知。`--tailnet` 只在用户明确需要手机访问时使用。
 
 ## 5. 诊断
 
@@ -57,11 +57,11 @@ python3 <skill-base>/scripts/dashboard_setup.py stop [--port 8765]
 
 ## 完成标准
 
-- check 的 status 与用户诉求一致（装完为 `installed`，升级后无 `differs`）。
+- check 的 status 与用户诉求一致（装完为 `installed`，升级后无 `differs`），且使用 `ray-content-v2` 的现行候选、写作任务和母稿路径。
 - 服务 healthz 探测通过，用户拿到可点击的 URL。
 - 升级/保留的文件清单已逐项呈现；`config.json` 从未被改写。
 - 用户只要求其中一件事时，没有顺手做另外几件。
 
 ## 上游
 
-资产副本来自 [rays-brain-kit](https://github.com/imraywang/rays-brain-kit)（工作台 + 采集管线的完整仓库）。更新资产时从上游整目录同步，不在本 skill 内单独修改仪表盘代码。
+资产副本来自 rays-brain-kit（工作台 + 采集管线的完整仓库）。更新资产时从上游整目录同步，不在本 skill 内单独修改仪表盘代码。

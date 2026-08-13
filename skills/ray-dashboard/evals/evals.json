@@ -36,7 +36,7 @@
       "name": "upgrade-preserves-user-config",
       "type": "boundary",
       "prompt": "/ray-dashboard 把我知识库里的工作台升级到最新，我自己改过里面的 config.json 和 styles.css。",
-      "expected_output": "check 显示 outdated 后确认升级范围；--upgrade 替换代码文件并逐项报告，config.json 保持原样，styles.css 的本地改动在替换前明确告知用户会被覆盖。",
+      "expected_output": "check 显示 different 后先确认分歧和升级范围，不能武断认定本地更旧；--upgrade 替换代码文件并逐项报告，config.json 保持原样，styles.css 的本地改动在替换前明确告知用户会被覆盖。",
       "expectations": [
         "升级前出示将被替换与将被保留的文件清单",
         "config.json 未被覆盖",

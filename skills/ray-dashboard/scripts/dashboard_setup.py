@@ -2,7 +2,7 @@
 """知识工作台（本地知识仪表盘）的安装、启动与诊断。
 
 命令都输出 JSON，便于上层判断；除 install 外全部只读或可逆。
-安装目标固定为 <vault>/50-系统/40-自动化/知识仪表盘/，与 ray-content-v1 布局一致。
+安装目标固定为 <vault>/50-系统/40-自动化/知识仪表盘/，与 ray-content-v2 布局一致。
 server.py 依赖上一级目录的 review_protocol.json / board_protocol.json（管线协议），
 install 会在缺失时从资产补默认副本；已存在的协议是管线数据，任何情况下不覆盖。
 """
@@ -64,6 +64,18 @@ def healthz(port: int) -> dict | None:
         return None
 
 
+def health_matches_vault(health: dict | None, vault: Path) -> bool:
+    if not health:
+        return False
+    raw = str(health.get("vault_path", "")).strip()
+    if not raw:
+        return False
+    try:
+        return Path(raw).expanduser().resolve() == vault.resolve()
+    except OSError:
+        return False
+
+
 def port_pids(port: int) -> list[int]:
     """只取端口的监听进程。不过滤会把连着端口的客户端（如浏览器 SSE 连接的
     辅助进程）一起列进来，stop 会误杀它们，start 的占用检测也会误报。"""
@@ -95,10 +107,13 @@ def check(vault: Path, port: int) -> dict:
     elif missing or missing_protocols:
         status = "incomplete"
     elif differs:
-        status = "outdated"
+        # 仅凭摘要不同无法判断哪一边更新：本地可能是用户改动，也可能比资产更新。
+        # 先报告分歧，是否覆盖由调用方在看过清单后决定。
+        status = "different"
     else:
         status = "installed"
     health = healthz(port)
+    matches_vault = health_matches_vault(health, vault)
     return {
         "status": status,
         "dashboard_dir": str(target),
@@ -107,7 +122,12 @@ def check(vault: Path, port: int) -> dict:
         "differs": differs,
         "has_user_config": (target / USER_CONFIG).exists(),
         "inbox_exists": (vault / "10-创作/10-灵感/inbox.md").exists(),
-        "server": {"port": port, "running": health is not None, "healthz": health},
+        "server": {
+            "port": port,
+            "running": health is not None,
+            "matches_vault": matches_vault,
+            "healthz": health,
+        },
     }
 
 
@@ -155,9 +175,16 @@ def install(vault: Path, upgrade: bool, dry_run: bool) -> dict:
     }
 
 
-def start(vault: Path, port: int, open_browser: bool) -> dict:
-    if healthz(port) is not None:
+def start(vault: Path, port: int, open_browser: bool, tailnet: bool = False) -> dict:
+    existing_health = healthz(port)
+    if health_matches_vault(existing_health, vault):
         return {"ok": True, "already_running": True, "url": f"http://127.0.0.1:{port}"}
+    if existing_health is not None:
+        return {
+            "ok": False,
+            "error": f"端口 {port} 正在运行另一个知识库的工作台，请换端口或先停止对方",
+            "healthz": existing_health,
+        }
     if port_pids(port):
         return {"ok": False, "error": f"端口 {port} 被其他进程占用，换 --port 或先停掉对方"}
     server = vault / DASHBOARD_REL / "server.py"
@@ -166,6 +193,8 @@ def start(vault: Path, port: int, open_browser: bool) -> dict:
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "RAYS_BRAIN": str(vault)}
     args = [sys.executable, str(server), "--port", str(port), "--quiet"]
+    if tailnet:
+        args.append("--tailnet")
     if not open_browser:
         args.append("--no-open")
     with LOG_FILE.open("a", encoding="utf-8") as log:
@@ -207,6 +236,7 @@ def main() -> None:
     parser.add_argument("--upgrade", action="store_true", help="install 时用资产替换已改动的代码文件（config.json 永不覆盖）")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--open", action="store_true", help="start 后自动打开浏览器")
+    parser.add_argument("--tailnet", action="store_true", help="start 时额外监听本机 Tailscale 地址")
     args = parser.parse_args()
     vault = Path(args.vault).expanduser().resolve() if args.vault else None
     if args.command in {"check", "install", "start"}:
@@ -218,7 +248,7 @@ def main() -> None:
     elif args.command == "install":
         result = install(vault, args.upgrade, args.dry_run)
     elif args.command == "start":
-        result = start(vault, args.port, args.open)
+        result = start(vault, args.port, args.open, args.tailnet)
     elif args.command == "stop":
         result = stop(args.port)
     else:

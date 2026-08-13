@@ -51,7 +51,7 @@ npx -y skills add imraywang/rayskills-lab -g -s <skill名> -y
 
 | Skill | 一句话 | 状态 | 开始孵化 |
 |---|---|---|---|
-| [ray-dashboard](skills/ray-dashboard/) | 给本地知识库安装、启动、升级和诊断零依赖的可视化工作台 | 安装/启停/升级/诊断链路已实测；launchd 自启仅文档 | 2026-07 |
+| [ray-dashboard](skills/ray-dashboard/) | 给现行 `ray-content-v2` 知识库安装、启动、升级和诊断零依赖的可视化工作台 | 安装/启停/升级/诊断链路已实测；launchd 自启仅文档 | 2026-07 |
 
 ## 已毕业 🎓
 

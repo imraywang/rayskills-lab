@@ -10,7 +10,7 @@
 
 ## 页面能开但数据不对 / 很慢
 
-- **计数为 0 或明显偏少**：确认服务的 `RAYS_BRAIN` 指向正确 vault（healthz 返回里有 vault 名）；再确认 vault 结构存在（缺目录先跑 bootstrap 或 ray-obsidian）。
+- **计数为 0 或明显偏少**：确认服务的 `RAYS_BRAIN` 指向正确 vault（healthz 返回里有 vault 名）；再确认 vault 使用现行目录（候选选题、写作任务、文章草稿与口播草稿），缺目录先跑 bootstrap 或 ray-obsidian。
 - **iCloud vault 首次很慢**：文件可能未下载到本机。Finder 里对 vault 目录"立即下载"，或 `brctl download <目录>`。单个文件读不出不会拖垮整页（会被跳过），但内容会缺。
 - **改了笔记页面没反应**：页面有 SSE 自动刷新，3–4 秒内应更新；没更新先手动刷新，再看服务日志里有无异常。
 
