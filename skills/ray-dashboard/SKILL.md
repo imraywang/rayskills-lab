@@ -17,6 +17,7 @@ description: 在用户的本地知识库上安装、启动、升级或诊断"知
 4. 用户已改动的代码文件默认保留；只有用户明确要求升级时才用 `--upgrade` 替换，并逐项报告。
 5. 启动的完成标准是 healthz 探测通过并交付可点击 URL，不以"命令没报错"为完成。
 6. 开机自启是持久配置，只在用户明确要求时按 [autostart.md](references/autostart.md) 配置。
+7. 本 skill 只装仪表盘和两份协议，不装采集管线、发布归档脚本和 `50-系统/30-模板/` 下的反馈卡与成稿包模板。工作台里的「让 Codex 起草」依赖 `知识采集/knowledge_ingest.py`，「登记发布」依赖 `发布归档/record_published.py` 和 `内容反馈.md`、`口播视频反馈.md`、`内容成稿包.md` 三份模板；只装本 skill 的库这两个动作会报「找不到脚本」。用户要用它们时，明确告知需要完整的 rays-brain-kit，不在本 skill 内补写这些脚本。
 
 ## 1. 确定知识库根目录
 
@@ -65,3 +66,5 @@ python3 <skill-base>/scripts/dashboard_setup.py stop [--port 8765]
 ## 上游
 
 资产副本来自 rays-brain-kit（工作台 + 采集管线的完整仓库）。更新资产时从上游整目录同步，不在本 skill 内单独修改仪表盘代码。
+
+资产里的 `test_server.py` 可以在 skill 目录单独运行：缺上游模板时用占位，缺发布归档脚本的 3 个集成测试会跳过，其余应全部通过。
